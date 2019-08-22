@@ -1,9 +1,9 @@
 # svelte + immer strategies
 
 Svelte apps can be built using patterns familiar to the React / Redux community.
-This repository contains a demo app that shows how one might build an app with
+This repository contains a demo app that shows how one might build such a thing with
 a single global store + functions that create a new state from the current
-one. You know, like Redux! This repo is an expression of a few principles:
+one. You know, like Redux, sort of! This repo is an expression of a few principles:
 
 1. follow _some_ patterns you may be familiar with if you come from React /
    Redux land by having a single source of truth for the all the app's business
@@ -89,38 +89,30 @@ Next up, we can see how to use these in context.
 
 ## components can generically subscribe to STORE directly and use the state, no prob
 
-At this point, because our `STORE` is read-only, we can easily subscribe to the
+Because our `STORE` is read-only, we can easily subscribe to the
 store values we care about directly in our components, a la
 `$STORE.randomNumbers` and so on. There may be more complex, interesting
 patterns here that I'm not considering, namely things that require very complex
-nested objects. I'll make sure to try those in this repo at some point, but I
-don't really think they'd be a problem.
+nested objects.
 
 ## using state & actions in components
 
-These are two very common patterns in the `react-redux` world, where you have
-an unconnected component that connects to Redux-land via this function. You
+When you use `react-redux`, you
 typically define  `mapStateToProps` and `mapDispatchToProps` (for mapping the
-store to props & dispatched actions to props, respectively) and connect your
+store to props & dispatched actions to props, respectively) and `connect` your
 component using those two functions.
 
-I am not _against_ this idea, but I think there are many ways to handle these
-kinds of patterns outside of Redux-land that will still be familiar and simple
-enough. After all, we're trying to prevent boilerplate while maintaining
-legibility, testability, and joy. Here's how I handle it in this repo:
+With that in mind, here's how I handle that functionality in this repo:
 
-1. the bits of state – this is fairly straightforward. You write the
-   "unconnected" component just as you normally would regardless of how it is
-   used, and pass in the props you care about from the parent. These relies on
-   the parent component that implements the functionality to handle the
-   `mapStateToProps` workflow. I tend to think that's the right approach,
-   though.
-2. the actions – in a similar fashion, one could connect actions to the store
+1. `mapStateToProps` – In this model the parent component implements the functionality to handle the
+   `mapStateToProps` workflow by passing in the props to the children. You could
+   write a `mapStateToProps` function and test it if you like.
+2. `mapDispatchToProps` – in a similar fashion, one could connect actions to the store
    update function via the `connect` function above – something like 
    ```javascript
    const add = connect(addRandomNumber)
    ```
-    – and just pass that down as a prop to each component. Alternatively, you
+    – and just pass that down as a prop to each child component. Alternatively, you
     can use Svelte's great `setContext` and `getContext` to give your components
     the opportunity to either consume the prop (if passed as such) or attempt to
     fetch from the parent component (in other words, the component that utilizes
@@ -128,9 +120,7 @@ legibility, testability, and joy. Here's how I handle it in this repo:
     using something like `export let onDelete = getContext('onDelete')` and
     throw if no prop was passed in / the `getContext` returns `undefined` (that
     is, the parent never calls `setContext('onDelete',
-    connect(deleteRandomNumber))`). This shouldn't be that controversial, if
-    you've been keeping up with the movement to use Context over Redux in the
-    React community.
+    connect(deleteRandomNumber))`).
 
 A full example with all of these patterns can be found in `RandomNumberList.svelte`.
 
@@ -140,15 +130,25 @@ There are a few other things that are nice about this overall approach:
 
 1. binding sort of just works as you would expect. Take a look at
    `Selector.svelte` for an example of this. As long as you rely on the `STORE`
-   for the current value and some `dispatch` / `connect` thing for the mutation,
-   you have everything you want.
+   for the current value and some `dispatch` / `connect` type-pattern for the mutation,
+   your component will update when the prop value changes.
+2. you get a nice separation of app logic from UX, and this makes the app easier
+   to test.
+3. in my experience, there is a lot of noise and boilerplate doing things the
+   "Redux way" and it gets in the way of my work and happiness.
 
 ## downsides
 
-There are, of course, some downsides to this approach:
-- You don't get any of the nice Redux middleware, though some of it can perhaps
-  be built by you, since this is such a simple model.
-  
+Of course, there are always tradeoffs. The main one I can think of is you don't
+get all that nice Redux middleware with this approach. Thunks are not included,
+and you can't get the logging and all that. Though it is pretty easy to add
+middleware by just looking at the Redux repository. `applyMiddleware` is thankfully [very slim and easily
+copied](https://github.com/reduxjs/redux/blob/master/src/applyMiddleware.js).
+[Thunks are also very easy to implement](https://github.com/reduxjs/redux-thunk/blob/master/src/index.js).
+
+Of course, you can just use Redux in Svelte. Redux is framework-agnostic. For the kind
+of data apps that I build, however, I have found Redux to be a tad bit of a drag
+and not overly necessary.
 
 ## conclusion
 
