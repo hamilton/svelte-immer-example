@@ -40,7 +40,7 @@ h1 {
 
     <p>
         Try playing with these selectors. Take a look at the query string in the
-        URL. Read the source on Github.
+        URL. Read the source on <a href='https://github.com/hamilton/svelte-immer-example'>Github</a>.
     </p>
 
     <Selector label={"os"} current={$STORE.os} onChange={(os) => dispatch(changeOS(os))} options={options.os}  />
