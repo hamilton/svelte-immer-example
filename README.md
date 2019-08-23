@@ -139,16 +139,14 @@ There are a few other things that are nice about this overall approach:
 
 ## downsides
 
-Of course, there are always tradeoffs. The main one I can think of is you don't
-get all that nice Redux middleware with this approach. Thunks are not included,
-and you can't get the logging and all that. Though it is pretty easy to add
-middleware by just looking at the Redux repository. `applyMiddleware` is thankfully [very slim and easily
+Of course, there are always tradeoffs to simplifying. You don't get any of the
+middleware available to Redux, though it is pretty easy to add
+middleware functionality by looking at the `applyMiddleware` function in Redux. [Pretty slim and easily
 copied](https://github.com/reduxjs/redux/blob/master/src/applyMiddleware.js).
 [Thunks are also very easy to implement](https://github.com/reduxjs/redux-thunk/blob/master/src/index.js).
 
-Of course, you can just use Redux in Svelte. Redux is framework-agnostic. For the kind
-of data apps that I build, however, I have found Redux to be a tad bit of a drag
-and not overly necessary.
+Of course, you can also just use Redux in Svelte. Redux is framework-agnostic. For the kind
+of data apps that I build, however, I have found Redux to be a bit overly heavy.
 
 ## conclusion
 
