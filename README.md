@@ -11,7 +11,9 @@ use-cases I've had for Redux in React-land, even more complex ones.
 
 This explanation assumes knowledge of Redux & Svelte, and in fact replicates
 some of the functionality in Redux. Why? Because I use Redux in my React apps
-and wanted an excuse to understand some parts of it better. Let's take a
+and wanted an excuse to understand some parts of it better. I also think that
+the path to being good at this kind of frontend UX work (especially in the data
+world) is to learn patterns from everywhere and use them where you can. Let's take a
 look.
 
 ## Svelte Writables + Immer's `produce`
