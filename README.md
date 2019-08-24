@@ -18,7 +18,7 @@ look.
 
 ## Svelte Writables + Immer's `produce`
 
-Our entire state model only needs Svelte's `writable` and Immer's `produce`
+We will build our entire store / dispatch model using Svelte's `writable` and Immer's `produce`
 function. First, we'll create our store and add some initial state that looks
 like some of what's in the repository.
 
@@ -144,11 +144,12 @@ together the functionality I care about based on the patterns I've found
 helpful. It wouldn't be that hard to mimic Redux's middleware functionality. [It
 is pretty slim and easily
 copied source
-code, after all](https://github.com/reduxjs/redux/blob/master/src/applyMiddleware.js).
+code, after
+all](https://github.com/reduxjs/redux/blob/master/src/applyMiddleware.js).
+Following the middlware pattern, one could easily write a logger or some undo /
+redo functionality. Perhaps I'll take this as a future exercise.
 
-Go with your heart.
-
-I also define a function, `connect`, which allows you to better compose the
+Let's also define a function, `connect`, which allows us to better compose a
 function with the dispatcher so you don't have to call the latter:
 
 ```javascript
