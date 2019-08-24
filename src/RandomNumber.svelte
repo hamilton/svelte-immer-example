@@ -44,7 +44,7 @@ const fm = format(',.2')
         <div>{fm($tweenedNumber)}</div>
         <div>
             <svg width="100" height="20">
-                <rect x=0 y=0 height=20 width={$tweenedNumber} fill=lightgray />
+                <rect x=0 y=0 height=20 width={$tweenedNumber} fill="rgba(255,255,255,.4)" />
             </svg>
         </div>
         <div>

@@ -6,6 +6,15 @@ export let onChange;
 
 </script>
 
+<style>
+select {
+    background-color: transparent;
+    color: white;
+    border: 1px solid darkgray;
+}
+
+</style>
+
 <div>
 {label}
 

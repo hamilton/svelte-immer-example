@@ -1,99 +1,194 @@
-# svelte + immer strategies
+# one way (of many) to maintain global app state in Svelte
 
-Svelte apps can be built using patterns familiar to the React / Redux community.
-This repository contains a demo app that shows how one might build such a thing with
-a single global store + functions that create a new state from the current
-one. You know, like Redux, sort of! This repo is an expression of a few principles:
+One thing I like about Svelte is that the primitives are powerful and diverse
+enough that you can imitate many common app architecture patterns from
+React-land if you want. This repository provides an example of using Svelte
+writables & immer to create a redux-lite approach to app state.
 
-1. follow _some_ patterns you may be familiar with if you come from React /
-   Redux land by having a single source of truth for the all the app's business
-   logic (they call this a "store" in Redux land) with functions that return a
-   new state. This particularly works well in the actually-reactive paradigm of Svelte.
-2. continue in the proud Svelte tradition of reducing lines of code by doing
-   things simply
-3. make it easy to maintain the testability and integrity of your app as it
-   grows in complexity
-4. leverage the gajillion things that makes Svelte a joy to work in
+My approach is (1) testable, (2) barely any code, and (3) a joy to work
+with. It may not be "heavy duty", but I think it handles virtually all the
+use-cases I've had for Redux in React-land, even more complex ones. 
 
-This readme (and in fact this whole repo) assumes familiarity with React, Redux,
-and Svelte.
+This explanation assumes knowledge of Redux & Svelte, and in fact replicates
+some of the functionality in Redux. Why? Because I use Redux in my React apps
+and wanted an excuse to understand some parts of it better. Let's take a
+look.
 
-I made this repository to show some other Mozilla employees a few of these patterns. Throughout the codebase, I've left as many comments that suggests how this thing
-works and why choices were made. I am not tied to these patterns enough to
-advocate fiercely for them in public, and will likely deviate from these if I
-find that something doesn't quite work as you would expect. That said,
-suggestions & improvements welcome as issues.
+## Svelte Writables + Immer's `produce`
 
-## Svelte writable + immer for updates
+Our entire state model only needs Svelte's `writable` and Immer's `produce`
+function. First, we'll create our store and add some initial state that looks
+like some of what's in the repository.
 
-The first pattern is the most obvious; Svelte has a built-in store feature, which can be used with immer to maintain
-a global store for your entire app a la Redux. Take a look at `store.js`. You'll see the
-following:
+```javascript
 
-1. a `writable` called `STORE`, which defaults to some initial state you can
-   define (perhaps from a server, or local storage, or whatever). Critically, we export 
-    `{ subscribe: STORE.subscribe }` instead of `STORE` from `store.js` because we do not want
-    the store to be manipulated manually within the app via `set` or `update`. This follows from one
-    of the patterns described in the [Svelte
-    tutorial](https://svelte.dev/tutorial/custom-stores)
-2. a function called `dispatch`, which looks like this:
-    ```javascript
-    const dispatch = (fcn) => STORE.update(state => produce(state, fcn))
-    ``` 
-    This function updates the store with the provided function `fcn`,
-    which is an action (I use this term fast and loose, bare with mem but I mean
-    "a function that determines what state changes are about to happen"). The
-    `produce` function is the totality of what we need from immer. It takes a state object and a function
-    that mutates a draft state, and returns a brand new copy of state.
-    Readers familiar with the React / Redux paradigm may have heard of immer –
-    it's often recommended as a way to produce a new complex state
-    object without having to commit to a ton of `Object.assign`s or whatever in
-    your reducers. It
-    has saved me tremendous time in the React context, so might as well use it
-    here since we face many of the same constraints. One could easily build a
-    Redux-style reducer and have that be the thing that gets called (or heck,
-    just use the Redux library) but I think it is overkill in many contexts,
-    including the contexts where I work.
-3. a function called `connect`, which takes a function, and then returns another
-   function that composes `dispatch` likeso:
+import { writable } from 'svelte/store';
+import produce from 'immer';
 
-   ```
-    const connect = (func) => {
-        return (...args) => dispatch(func(...args))
+const initialState = {
+    thing: true,
+    randomNumbers: []
+} // however you want to define it
+
+const STORE = writable(initialState);
+
+```
+
+Next, we will create a dispatcher that gives us a way to update the state.
+
+```javascript
+
+function dispatch(fcn) {
+    STORE.update(state => produce(state, fcn));
+}
+
+```
+
+Our `dispatch` function uses Immer's `produce`. Let's write two functions that
+we can feed into `dispatch`:
+
+```javascript
+
+const changeThingValue = trueFalse => draftState => {
+    draftState.thing = trueFalse;
+}
+
+const addRandomNumber = (value = Math.random()) => draftState => {
+    draftState.randomNumbers.push(value);
+}
+
+```
+
+Here is how you'd use these in the wild:
+
+```javascript
+
+dispatch(changeThingValue(false));
+dispatch(addRandomNumber());
+
+```
+
+So these functions all return functions that _close_ over the original
+function's arguments, and define some kind of state mutation. This might seem a
+little strange if you haven't encountered Immer before, but that's the magic of
+`produce` – you pass in an object and a function that mutates some draft of the
+object, and it produces a deep copy of the object with the changes. Pretty
+magical. 
+
+In the real world, however, one might be in the position of crafting composite /
+asyncronous functions that also aim to change the state, perhaps to hit an API
+endpoint. Take this one for example:
+
+```javascript
+export const requestNewNumbersFromAPI = (someArg) => async () => {
+    const numbers = await fetch(`/api/v1/some-args/${someArg}`)
+        .then(r => r.json());
+    numbers.forEach(value => dispatch(addRandomNumber(value)));
+    // what is thingValue? I don't know.
+    dispatch(changeThingValue(false));
+}
+
+``` 
+
+You could take one of two approaches here: (1) either just call
+`requestNewNumbersFromAPI()(dispatch)`, or (2) figure some way to
+actually dispatch this composite thing just like we did with the simpler ones. The first option seems kind of weird and
+hairy, and it sure would be nice to treat these more complex functions similarly
+to our simple state-mutating ones.
+
+My solution (for now) is to always add `async` to these functions, and have
+`dispatch` notice if the enclosing function is in fact `async`, and then pass in
+the dispatcher directly into the function (rather than expect a draft). Even if
+the function isn't inherently asynchronous, it won't really affect the
+dispatching one way or another.
+
+Here is one way to treat async functions differently:
+
+```javascript
+function dispatch(fcn) {
+    if (fcn.constructor.name === 'AsyncFunction') {
+        func(dispatch, () => get(STORE));
+    } else {
+        STORE.update(state, fcn)
     }
-   ```
-   This function allows you to have a single function that updates the store
-   with a particular action, allowing you to pass in the action arguments later when needed.
-4. actions, which take some arguments, then returns a draft-mutating function that
-   closes over the arguments, such as `(args) => draft => { draft.whatever = args
-   }`. These are fed directly into either `dispatch` or `connect`.
+}
+```
 
-We could simplify this approach by getting rid of `dispatch` and
-`connect` and have each action function update the state. But ultimately we may be in the position of reusing some of
-these actions down the line somewhere else, or against another store, or perhaps
-utilize actions from some tiny library you wrote at work that you have noticed
-has been used like ten times already. Separating out the action from the actual
-updating step in `produce` is one way to achieve a nice separation. It also
-allows you to test this all very easily. But you should 100% go with your heart
-and ignore the haters if you want to make it so you never have to call
-`connect`.
+The second function I'm passing into my composite function is the equivalent of
+Redux's `getState`. The function then calls `dispatch` again for the atomic
+updates. Now when I write a complex function such as
+`requestNewNumbersFromAPI`, I can do so like this:
 
-Avoid using the store for UX-related / transient locale state such as
-animations, and form input values. Keep business logic & globally-important
-state in the store.
+```javascript
+export const requestNewNumbersFromAPI = (someArg) => async (dispatch, getState => {
+    const numbers = await fetch(`/api/v1/some-args/${someArg}`)
+        .then(r => r.json());
+    numbers.forEach(value => dispatch(addRandomNumber(value)));
+    // turn thingValue into the opposite
+    dispatch(changeThingValue(!getState().thingValue));
+}
+```
 
-As an aside, I can see `store.js` really being `store.ts` – using typescript to provide
-interfaces & validate the store automatically.
+This kind of functionality is something you get from the `redux-thunk`
+middleware. But I find the pattern common enough
+that I rather just have it built into my dispatcher by default.
 
-Next up, we can see how to use these in context.
+At this point, if you come from a Redux background, you'll notice that these
+draft-mutating functions are replacing action creators entirely in my model. 
+There are, of course, tradeoffs to this approach. For one, I don't have any
+Redux-like middleware, which may be a bummer if you're used to logging or other
+complex things like sagas. Here's the thing, though: I'm just trying to put
+together the functionality I care about based on the patterns I've found
+helpful. It wouldn't be that hard to mimic Redux's middleware functionality. [It
+is pretty slim and easily
+copied source
+code, after all](https://github.com/reduxjs/redux/blob/master/src/applyMiddleware.js).
+
+Go with your heart.
+
+I also define a function, `connect`, which allows you to better compose the
+function with the dispatcher so you don't have to call the latter:
+
+```javascript
+const connect = fcn => {
+    return (...args) => dispatch(fcn(...args));
+}
+
+// in use:
+
+const add = connect(addRandomNumber);
+add() // equivalent of dispatch(addRandomNumber());
+```
+
+This will come in handy later.
+
+---
+
+The last important part of our store exploration is this: _using_ the store. The
+[Svelte
+tutorial](https://svelte.dev/tutorial/custom-stores) demonstrates that any
+object with a subscribe function will count as a store in Svelte (even if the
+functionality is not properly created. I suggest exporting from `store.js` an
+object with only `subscribe`, `dispatch`, and `connect`, leaving out the
+writable's `update` and `set` to prevent mutating the store in a component
+directly.
+
+In other words:
+
+```javascript
+
+export const store = { subscribe: STORE.subscribe, dispatch, connect };
+
+```
+
+All of this functionality could easily be coalesced into a function
+`createStore`, similar to what you'd see in Redux.
 
 ## components can generically subscribe to STORE directly and use the state, no prob
 
-Because our `STORE` is read-only, we can easily subscribe to the
+Because we export a read-only `store`, we can easily subscribe to the
 store values we care about directly in our components, a la
-`$STORE.randomNumbers` and so on. There may be more complex, interesting
-patterns here that I'm not considering, namely things that require very complex
-nested objects.
+`$store.randomNumbers` and so on.
 
 ## using state & actions in components
 
@@ -106,14 +201,14 @@ With that in mind, here's how I handle that functionality in this repo:
 
 1. `mapStateToProps` – In this model the parent component implements the functionality to handle the
    `mapStateToProps` workflow by passing in the props to the children. You could
-   write a `mapStateToProps` function and test it if you like.
+   write a `mapStateToProps` function, but I haven't.
 2. `mapDispatchToProps` – in a similar fashion, one could connect actions to the store
    update function via the `connect` function above – something like 
    ```javascript
    const add = connect(addRandomNumber)
    ```
     – and just pass that down as a prop to each child component. Alternatively, you
-    can use Svelte's great `setContext` and `getContext` to give your components
+    can use Svelte's `setContext` and `getContext` to give your components
     the opportunity to either consume the prop (if passed as such) or attempt to
     fetch from the parent component (in other words, the component that utilizes
     said component). In a component, you can easily construct this
@@ -124,40 +219,16 @@ With that in mind, here's how I handle that functionality in this repo:
 
 A full example with all of these patterns can be found in `RandomNumberList.svelte`.
 
-## etc.
-
-There are a few other things that are nice about this overall approach:
-
-1. binding sort of just works as you would expect. Take a look at
-   `Selector.svelte` for an example of this. As long as you rely on the `STORE`
-   for the current value and some `dispatch` / `connect` type-pattern for the mutation,
-   your component will update when the prop value changes.
-2. you get a nice separation of app logic from UX, and this makes the app easier
-   to test.
-3. in my experience, there is a lot of noise and boilerplate doing things the
-   "Redux way" and it gets in the way of my work and happiness.
-
-## downsides
-
-Of course, there are always tradeoffs to simplifying. You don't get any of the
-middleware available to Redux, though it is pretty easy to add
-middleware functionality by looking at the `applyMiddleware` function in Redux. [Pretty slim and easily
-copied](https://github.com/reduxjs/redux/blob/master/src/applyMiddleware.js).
-[Thunks are also very easy to implement](https://github.com/reduxjs/redux-thunk/blob/master/src/index.js).
-
-Of course, you can also just use Redux in Svelte. Redux is framework-agnostic. For the kind
-of data apps that I build, however, I have found Redux to be a bit overly heavy.
 
 ## conclusion
 
-There really isn't a right way to build an app, so do not let anyone tell you
-otherwise. This particular approach does, however, have a few benefits. One of
-these seems clear: it's simple and allows you to extend it as you need it. For
-the kinds of apps I build (data tools, dashboards, and data viz-heavy) these
-patterns have been quite easy to follow along.
+I think Redux's biggest strength is in evangelizing a conceptual model for
+transforming an application's state. I am indebted to that model, which gives me
+a great excuse to evade my leaky brain's desire for app-state chaos.
 
-
-
-## TODOS:
-
-- try methods around very-nested state and see what holds up
+This all said, I feel a wave of relief from escaping the noise and boilerplate
+in some of my React / Redux apps. Some of that noise is simply the impression of
+a community that feels too loud and opinionated. My time in Svelte-land has
+taught me that there are many ways to build an app, and the important thing to
+remember is that these frameworks are tools to organize and communicate your
+intentions. Svelte + Immer gives me the best of all worlds. For now.
