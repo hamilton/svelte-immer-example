@@ -55,6 +55,10 @@ const randomNumber = () => {
     return Math.random() * 100;
 }
 
+export const clearRandomNumbers = () => draft => {
+    draft.randomNumbers = [];
+}
+
 export const addRandomNumber = () => draft => {
     draft.randomNumbers.push({
         value: randomNumber(),
@@ -77,6 +81,7 @@ export const setAPIWaitingStatus = tf => draft => {
 
 export const requestNewNumbersFromAPI = () => async (dispatch) => {
     // first we will set some status flag.
+    dispatch(clearRandomNumbers());
     dispatch(setAPIWaitingStatus(true));
     // now lets wait for the API call
     await new Promise(resolve => setTimeout(resolve, 1000));

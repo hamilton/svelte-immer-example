@@ -1,4 +1,4 @@
-# one way (of many) to maintain global app state in Svelte
+# one cheap way to do app state management in Svelte
 
 One thing I like about Svelte is that the primitives are powerful and diverse
 enough that you can imitate many common app architecture patterns from
@@ -19,8 +19,11 @@ look.
 ## Svelte Writables + Immer's `produce`
 
 We will build our entire store / dispatch model using Svelte's `writable` and Immer's `produce`
-function. First, we'll create our store and add some initial state that looks
-like some of what's in the repository.
+function. The goal is to provide some of Redux's basic functionality – have a
+store and a dispatch function that creates a new state for that store.
+
+In this repository, we have an app that creates and manages a set of random
+numbers. First, we'll create our store and add some initial state:
 
 ```javascript
 
@@ -82,7 +85,7 @@ asyncronous functions that also aim to change the state, perhaps to hit an API
 endpoint. Take this one for example:
 
 ```javascript
-export const requestNewNumbersFromAPI = (someArg) => async () => {
+export const requestNewNumbersFromAPI = async (someArg) => {
     const numbers = await fetch(`/api/v1/some-args/${someArg}`)
         .then(r => r.json());
     numbers.forEach(value => dispatch(addRandomNumber(value)));
@@ -93,10 +96,10 @@ export const requestNewNumbersFromAPI = (someArg) => async () => {
 ``` 
 
 You could take one of two approaches here: (1) either just call
-`requestNewNumbersFromAPI()(dispatch)`, or (2) figure some way to
-actually dispatch this composite thing just like we did with the simpler ones. The first option seems kind of weird and
-hairy, and it sure would be nice to treat these more complex functions similarly
-to our simple state-mutating ones.
+`requestNewNumbersFromAPI(someArg)`, or (2) figure some way to
+actually dispatch this composite thing just like we did with the simpler ones. 
+While the first option is not bad, we want to unify how we dispatch both simple
+and composite state-changing functions.
 
 My solution (for now) is to always add `async` to these functions, and have
 `dispatch` notice if the enclosing function is in fact `async`, and then pass in
@@ -104,7 +107,7 @@ the dispatcher directly into the function (rather than expect a draft). Even if
 the function isn't inherently asynchronous, it won't really affect the
 dispatching one way or another.
 
-Here is one way to treat async functions differently:
+Here is one way to treat async functions differently in `dispatch`:
 
 ```javascript
 function dispatch(fcn) {
@@ -116,13 +119,13 @@ function dispatch(fcn) {
 }
 ```
 
-The second function I'm passing into my composite function is the equivalent of
+Here, you'll notice `() => get(STORE)`. This second function is the equivalent of
 Redux's `getState`. The function then calls `dispatch` again for the atomic
 updates. Now when I write a complex function such as
 `requestNewNumbersFromAPI`, I can do so like this:
 
 ```javascript
-export const requestNewNumbersFromAPI = (someArg) => async (dispatch, getState => {
+export const requestNewNumbersFromAPI = (someArg) => async (dispatch, getState) => {
     const numbers = await fetch(`/api/v1/some-args/${someArg}`)
         .then(r => r.json());
     numbers.forEach(value => dispatch(addRandomNumber(value)));
@@ -147,7 +150,9 @@ copied source
 code, after
 all](https://github.com/reduxjs/redux/blob/master/src/applyMiddleware.js).
 Following the middlware pattern, one could easily write a logger or some undo /
-redo functionality. Perhaps I'll take this as a future exercise.
+redo functionality. 
+
+Perhaps we'll leave this as a future exercise. For now, this model works really well.
 
 Let's also define a function, `connect`, which allows us to better compose a
 function with the dispatcher so you don't have to call the latter:
@@ -170,8 +175,7 @@ This will come in handy later.
 The last important part of our store exploration is this: _using_ the store. The
 [Svelte
 tutorial](https://svelte.dev/tutorial/custom-stores) demonstrates that any
-object with a subscribe function will count as a store in Svelte (even if the
-functionality is not properly created. I suggest exporting from `store.js` an
+object with a subscribe function will count as a store in Svelte. I suggest exporting from `store.js` an
 object with only `subscribe`, `dispatch`, and `connect`, leaving out the
 writable's `update` and `set` to prevent mutating the store in a component
 directly.
@@ -185,7 +189,13 @@ export const store = { subscribe: STORE.subscribe, dispatch, connect };
 ```
 
 All of this functionality could easily be coalesced into a function
-`createStore`, similar to what you'd see in Redux.
+`createStore`, similar to what you'd see in Redux. With that, it should be clear
+– we've basically done the first half of Redux.
+
+You'll notice, however, that we haven't written any reducers. For heavier
+applications, it is perhaps useful to have a clear delineation between the
+action objects and the state transitions in the reducers. I have a pretty strong
+opinion about this, however: 70% of applications don't need such a heavy-handed approach.
 
 ## components can generically subscribe to STORE directly and use the state, no prob
 

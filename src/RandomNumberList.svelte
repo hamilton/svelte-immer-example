@@ -20,6 +20,10 @@ ul {
     padding:0;
 }
 
+button {
+    margin-bottom: 20px;
+}
+
 </style>
 
 <button on:click={add}>+ random number</button>

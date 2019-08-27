@@ -5,7 +5,8 @@ html, body {
 }
 
 body {
-	background-color: #333;
+	color: white;
+	background-color: #121212;
 	margin: 0;
 	padding: 8px;
 	box-sizing: border-box;
@@ -13,7 +14,7 @@ body {
 }
 
 a {
-	color: rgb(0,100,200);
+	color: rgb(146, 185, 224);
 	text-decoration: none;
 }
 
@@ -22,7 +23,7 @@ a:hover {
 }
 
 a:visited {
-	color: rgb(0,80,160);
+	color: rgb(146, 185, 224);
 }
 
 label {
@@ -55,13 +56,13 @@ button {
 	font-size:12px;
 	text-transform:uppercase;
 	border-radius: 3px;
-	color: #333;
+	color: white;
 	outline: none;
 	transition: 100ms;
 }
 
 button:hover {
-	background-color: gainsboro;
+	background-color: gray;
 	border: 1px solid gray;
 	box-shadow: 2px 2px 0px gainsboro;
 }
